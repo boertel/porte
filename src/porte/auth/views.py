@@ -70,6 +70,7 @@ def facebook_callback():
     me = requests.get('https://graph.facebook.com/me', params={'access_token': resp['access_token']}).json()
     consumer_data = {
         'id': me['id'],
+        'params': resp
     }
     user = consumerize(provider, consumer_data, {'username': me['email']})
     session['id'] = user.id
