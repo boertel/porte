@@ -1,100 +1,58 @@
+import json
+from importlib import import_module
+
 from porte import db
+from porte.utils import JSONAlchemy
 
 
-class Client(db.Model):
-    name = db.Column(db.String(40))
-    description = db.Column(db.String(400))
-
-    user_id = db.Column(db.ForeignKey('user.id'))
-    user = db.relationship('User')
-
-    client_id = db.Column(db.String(40), primary_key=True)
-    client_secret = db.Column(db.String(55), unique=True, index=True,
-                              nullable=False)
-    is_confidential = db.Column(db.Boolean)
-    _redirect_uris = db.Column(db.Text)
-    _default_scopes = db.Column(db.Text)
-
-    @property
-    def client_type(self):
-        if self.is_confidential:
-            return 'confidential'
-        return 'public'
-
-    @property
-    def redirect_uris(self):
-        return self._redirect_uris.split()
-
-    @property
-    def default_redirect_uri(self):
-        return self.redirect_uris[0]
-
-    @property
-    def default_scopes(self):
-        if self._default_scopes:
-            return self._default_scopes.split()
-        return []
-
-# TODO move to cache
-# http://flask-oauthlib.readthedocs.org/en/latest/api.html#flask_oauthlib.contrib.oauth2.bind_cache_grant
-class Grant(db.Model):
+class Provider(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(40), unique=True)
+    _params = db.Column(db.Text)
+
+    __mapper_args__ = {
+        'polymorphic_identity': 'provider',
+        'polymorphic_on': name
+    }
+
+    @property
+    def params(self):
+        return json.loads(self._params)
+
+    @params.setter
+    def params(self, value):
+        self._params = json.dumps(value)
+
+    def get_consumer(self, *args, **kwargs):
+        module_name = 'porte.auth.consumers.%sConsumer' % self.name.capitalize()
+        path, class_name = module_name.rsplit('.', 1)
+        mod = import_module(path)
+        obj = getattr(mod, class_name)(**kwargs)
+        obj.provider = self
+        return obj
+
+
+class Consumer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    uid = db.Column(db.String(255))
+    verify_token = db.Column(db.String(255))
+    params = db.Column(JSONAlchemy(db.Text(600)))
+    provider_id = db.Column(
+        db.Integer, db.ForeignKey('provider.id', ondelete='CASCADE')
+    )
+    provider = db.relationship('Provider')
+
     user_id = db.Column(
         db.Integer, db.ForeignKey('user.id', ondelete='CASCADE')
     )
     user = db.relationship('User')
 
-    client_id = db.Column(
-        db.String(40), db.ForeignKey('client.client_id'),
-        nullable=False
-    )
-    client = db.relationship('Client')
+    def __init__(self, *args, **kwargs):
+        self.verify_token = self.get_verify_token()
+        super(Consumer, self).__init__(*args, **kwargs)
 
-    code = db.Column(db.String(255), index=True, nullable=False)
+    def get_verify_token(self):
+        raise NotImplemented
 
-    redirect_uri = db.Column(db.String(255))
-    expires = db.Column(db.DateTime)
-
-    _scopes = db.Column(db.Text)
-
-    def delete(self):
-        db.session.delete(self)
-        db.session.commit()
-        return self
-
-    @property
-    def scopes(self):
-        if self._scopes:
-            return self._scopes.split()
-        return []
-
-
-class Token(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    client_id = db.Column(
-        db.String(40), db.ForeignKey('client.client_id'),
-        nullable=False
-    )
-    client = db.relationship('Client')
-    user_id = db.Column(
-        db.Integer, db.ForeignKey('user.id')
-    )
-    user = db.relationship('User')
-
-    token_type = db.Column(db.String(40))
-
-    access_token = db.Column(db.String(255), unique=True)
-    refresh_token = db.Column(db.String(255), unique=True)
-    expires = db.Column(db.DateTime)
-    _scopes = db.Column(db.Text)
-
-    def delete(self):
-        db.session.delete(self)
-        db.session.commit()
-        return self
-
-    @property
-    def scopes(self):
-        if self._scopes:
-            return self._scopes.split()
-        return []
+    def exists(self):
+        return self.query.filter_by(verify_token=self.get_verify_token()).count() == 1

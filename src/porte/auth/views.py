@@ -1,32 +1,79 @@
-from urllib import quote
+import requests
 
 from flask import session, request, Blueprint
 from flask import render_template, jsonify, redirect, url_for
 from werkzeug.security import gen_salt
 
-from porte import oauth, db
-from porte.auth.models import Client
+from porte import db
+from porte.oauth.models import Client
+from porte.auth.models import Provider
+from porte.auth.providers import FacebookProvider
 from porte.user.models import User
 from porte.auth.helpers import current_user
 
 
-auth_module = Blueprint('auth', __name__, url_prefix='/oauth')
+auth_module = Blueprint('auth', __name__, url_prefix='/auth')
+
+def consumerize(provider, consumer_data, user_data):
+    commit = False
+    consumer = provider.get_consumer(**consumer_data)
+    if not consumer.exists():
+        db.session.add(consumer)
+        commit = True
+    if not consumer.user:
+        user = User(**user_data)
+        consumer.user = user
+        db.session.add(user)
+        commit = True
+    if commit:
+        db.session.commit()
+    return user
 
 
 # auth module: with type=email|facebook|twitter
-@auth_module.route('/', methods=['GET', 'POST'])
+@auth_module.route('/email', methods=['GET', 'POST'])
 def home():
     if request.method == 'POST':
+        provider = Provider.query.filter_by(name='email').first()
         username = request.form.get('username')
-        user = User.query.filter_by(username=username).first()
-        if not user:
-            user = User(username=username)
-            db.session.add(user)
-            db.session.commit()
+        password = request.form.get('password')
+        consumer_data = {
+            'username': username,
+            'password': password
+        }
+        user = consumerize(provider, consumer_data, {'username': username})
         session['id'] = user.id
         return redirect(request.form.get('next', url_for('auth.home')))
     user = current_user()
-    return render_template('auth/home.html', user=user, next=request.args.get('next'))
+    return render_template('auth/home.html',
+                           user=user,
+                           action=url_for('auth.home'),
+                           next=request.args.get('next'))
+
+@auth_module.route('/facebook', methods=['GET', 'POST'])
+def facebook():
+    provider = FacebookProvider.query.filter_by(name='facebook').first()
+    url = url_for('auth.facebook_callback', _external=True)
+    return provider.response(url)
+
+@auth_module.route('/facebook/callback')
+def facebook_callback():
+    provider = FacebookProvider.query.filter_by(name='facebook').first()
+    remote = provider.remote
+    resp = remote.authorized_response()
+    if resp is None:
+        return 'Access denied: reason=%s error=%s' % (
+            request.args['error_reason'],
+            request.args['error_description']
+        )
+    # TODO ERROR
+    me = requests.get('https://graph.facebook.com/me', params={'access_token': resp['access_token']}).json()
+    consumer_data = {
+        'id': me['id'],
+    }
+    user = consumerize(provider, consumer_data, {'username': me['email']})
+    session['id'] = user.id
+    return redirect(request.form.get('next', url_for('auth.home')))
 
 @auth_module.route('/client')
 def client():
@@ -45,29 +92,3 @@ def client():
     db.session.add(item)
     db.session.commit()
     return jsonify(client_id=item.client_id, client_secret=item.client_secret)
-
-# TODO oauth module
-@auth_module.route('/authorize', methods=['GET', 'POST'])
-@oauth.authorize_handler
-def authorize(*args, **kwargs):
-    user = current_user()
-    if not user:
-        return redirect('%s?next=%s' % (url_for('auth.home'), quote(request.url)))
-    if request.method == 'GET':
-        client_id = kwargs.get('client_id')
-        client = Client.query.filter_by(client_id=client_id).first()
-        kwargs['client'] = client
-        kwargs['user'] = user
-        return render_template('auth/authorize.html', **kwargs)
-    confirm = request.form.get('confirm', 'no')
-    return confirm == 'yes'
-
-@auth_module.route('/token', methods=['POST'])
-@oauth.token_handler
-def access_token():
-    return None
-
-@auth_module.route('/revoke', methods=['POST'])
-@oauth.revoke_handler
-def revoke_token():
-    pass
