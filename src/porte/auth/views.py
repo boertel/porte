@@ -7,6 +7,7 @@ from werkzeug.security import gen_salt
 from porte import db
 from porte.oauth.models import Client
 from porte.auth.models import Provider
+from porte.auth.forms import RegistrationForm, LoginForm
 from porte.auth.providers import FacebookProvider
 from porte.user.models import User
 from porte.auth.helpers import current_user
@@ -21,7 +22,9 @@ def consumerize(provider, consumer_data, user_data):
         db.session.add(consumer)
         commit = True
     if not consumer.user:
-        user = User(**user_data)
+        user = User.query.filter_by(email=user_data['email']).first()
+        if user is None:
+            user = User(**user_data)
         consumer.user = user
         db.session.add(user)
         commit = True
@@ -29,27 +32,74 @@ def consumerize(provider, consumer_data, user_data):
         db.session.commit()
     return user
 
+@auth_module.route('/', methods=['GET'])
+def home():
+    user = current_user()
+    urls = {
+        'email': url_for('auth.email_register'),
+        'facebook': url_for('auth.facebook'),
+        'logout': url_for('auth.logout')
+    }
+    return render_template('auth/index.html',
+                           user=user,
+                           urls=urls)
+
+@auth_module.route('/success', methods=['GET'])
+def success():
+    user = current_user()
+    if user:
+        return jsonify(user.json())
+    return redirect(url_for('auth.home'))
+
+@auth_module.route('/logout')
+def logout():
+    session.pop('id', None)
+    return redirect(request.referrer or url_for('auth.home'))
+
+# TODO move to email module
+@auth_module.route('/email/register', methods=['GET', 'POST'])
+def email_register():
+    form = RegistrationForm()
+    if form.validate():
+        provider = Provider.query.filter_by(name='email').first()
+        email = form.data['email']
+        consumer_data = {
+            'email': email,
+            'password': form.data['password'],
+        }
+        user = consumerize(provider, consumer_data, {'email': email})
+        session['id'] = user.id
+        return redirect(url_for('auth.success'))
+    return render_template('auth/email_register.html',
+                           errors=form.errors,
+                           form=form,
+                           action=url_for('auth.email_register'))
 
 # auth module: with type=email|facebook|twitter
 @auth_module.route('/email', methods=['GET', 'POST'])
-def home():
+def email_login():
     if request.method == 'POST':
-        provider = Provider.query.filter_by(name='email').first()
-        username = request.form.get('username')
-        password = request.form.get('password')
-        consumer_data = {
-            'username': username,
-            'password': password
-        }
-        user = consumerize(provider, consumer_data, {'username': username})
-        session['id'] = user.id
-        return redirect(request.form.get('next', url_for('auth.home')))
+        form = LoginForm()
+        if form.validate():
+            provider = Provider.query.filter_by(name='email').first()
+            consumer_data = {
+                'email': form.data.email,
+                'password': form.data.password
+            }
+            # TODO get_consumer and exists happens in the consumerize
+            consumer = provider.get_consumer(**consumer_data)
+            if consumer.exists():
+                user = consumerize(provider, consumer_data, {'email': form.data.email})
+                session['id'] = user.id
+        return redirect(request.form.get('next', url_for('auth.success')))
     user = current_user()
-    return render_template('auth/home.html',
+    return render_template('auth/email.html',
                            user=user,
-                           action=url_for('auth.home'),
+                           action=url_for('auth.email_login'),
                            next=request.args.get('next'))
 
+
+# TODO move to a facebook module
 @auth_module.route('/facebook', methods=['GET', 'POST'])
 def facebook():
     provider = FacebookProvider.query.filter_by(name='facebook').first()
@@ -72,9 +122,9 @@ def facebook_callback():
         'id': me['id'],
         'params': resp
     }
-    user = consumerize(provider, consumer_data, {'username': me['email']})
+    user = consumerize(provider, consumer_data, {'email': me['email']})
     session['id'] = user.id
-    return redirect(request.form.get('next', url_for('auth.home')))
+    return redirect(request.form.get('next', url_for('auth.success')))
 
 @auth_module.route('/client')
 def client():

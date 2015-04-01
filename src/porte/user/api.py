@@ -8,4 +8,4 @@ api_module = Blueprint('api', __name__, url_prefix='/api')
 @oauth_provider.require_oauth('email')
 def me():
     user = request.oauth.user
-    return jsonify(username=user.username)
+    return jsonify(email=user.email)

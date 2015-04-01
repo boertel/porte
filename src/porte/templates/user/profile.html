@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<form action="/api/v1/user" method="POST">
+    <input type="text" name="first_name">
+    <input type="text" name="last_name">
+    <button type="submit">Save</button>
+</form>
+{% endblock %}
+
+{% block javascript %}
+<script>
+    $('form[name=user]').on('submit', function (data) {
+        $.ajax({
+            action: $(this).attr('action'),
+            type: $(this).attr('method'),
+            success: function (response) {
+                console.log(response)
+            }
+        });
+    });
+</script>
+{% endblock %}

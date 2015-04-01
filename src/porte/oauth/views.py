@@ -15,9 +15,11 @@ def authorize(*args, **kwargs):
     user = current_user()
     if not user:
         return redirect('%s?next=%s' % (url_for('auth.home'), quote(request.url)))
+    client_id = kwargs.get('client_id')
+    client = Client.query.filter_by(client_id=client_id).first()
+    if client.is_confidential:
+        return True
     if request.method == 'GET':
-        client_id = kwargs.get('client_id')
-        client = Client.query.filter_by(client_id=client_id).first()
         kwargs['client'] = client
         kwargs['user'] = user
         return render_template('auth/authorize.html', **kwargs)
@@ -31,7 +33,8 @@ def access_token():
 
 @app.route('/oauth/revoke', methods=['POST'])
 @oauth_provider.revoke_handler
-def revoke_token():
+def revoke_token(*args, **kwargs):
+    import pdb; pdb.set_trace()
     pass
 
 # TODO more management ? than oauth

@@ -42,8 +42,10 @@ def save_token(token, request, *args, **kwargs):
     for t in toks:
         db.session.delete(t)
 
-    expires_in = token.pop('expires_in')
-    expires = datetime.utcnow() + timedelta(seconds=expires_in)
+    expires_in = {'seconds': token.pop('expires_in')}
+    if request.client.is_confidential:
+        expires_in = {'days': 365}
+    expires = datetime.utcnow() + timedelta(**expires_in)
 
     tok = Token(
         access_token=token['access_token'],

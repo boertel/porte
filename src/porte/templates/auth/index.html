@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+{% if user %}
+<p>You are {{ user.email }} [{{ user.id }}]</p>
+<a href="{{ urls.logout }}">Logout</a>
+{% else %}
+<ul>
+    <li><a href="{{ urls.email }}">Email</a></li>
+    <li><a href="{{ urls.facebook }}">Facebook</a></li>
+</ul>
+{% endif %}
+
+{% endblock %}
