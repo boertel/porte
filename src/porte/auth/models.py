@@ -24,7 +24,8 @@ class Provider(db.Model):
         self._params = json.dumps(value)
 
     def get_consumer(self, *args, **kwargs):
-        module_name = 'porte.auth.consumers.%sConsumer' % self.name.capitalize()
+        module_name = 'porte.auth.consumers.%sConsumer' % \
+            self.name.capitalize()
         path, class_name = module_name.rsplit('.', 1)
         mod = import_module(path)
         obj = getattr(mod, class_name)(**kwargs)
@@ -48,11 +49,12 @@ class Consumer(db.Model):
     user = db.relationship('User')
 
     def __init__(self, *args, **kwargs):
-        self.verify_token = self.get_verify_token()
         super(Consumer, self).__init__(*args, **kwargs)
+        self.verify_token = self.get_verify_token()
 
     def get_verify_token(self):
         raise NotImplemented
 
     def exists(self):
-        return self.query.filter_by(verify_token=self.get_verify_token()).count() == 1
+        return self.query.filter_by(verify_token=self.get_verify_token())\
+            .count() == 1
