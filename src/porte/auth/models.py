@@ -23,20 +23,18 @@ class Provider(db.Model):
     def params(self, value):
         self._params = json.dumps(value)
 
-    def create_consumer(self, *args, **kwargs):
-        module_name = 'porte.auth.consumers.%sConsumer' % \
-            self.name.capitalize()
-        path, class_name = module_name.rsplit('.', 1)
-        mod = import_module(path)
-        obj = getattr(mod, class_name)(**kwargs)
-        obj.provider = self
-        return obj
+
+def get_consumer_class(provider_name):
+    module_name = 'porte.auth.consumers.%sConsumer' % \
+        provider_name.capitalize()
+    path, class_name = module_name.rsplit('.', 1)
+    mod = import_module(path)
+    return getattr(mod, class_name)
 
 
 class Consumer(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     uid = db.Column(db.String(255))
-    verify_token = db.Column(db.String(255))
     params = db.Column(JSONAlchemy(db.Text(600)))
     provider_id = db.Column(
         db.Integer, db.ForeignKey('provider.id', ondelete='CASCADE')
@@ -50,16 +48,17 @@ class Consumer(db.Model):
 
     def __init__(self, *args, **kwargs):
         super(Consumer, self).__init__(*args, **kwargs)
-        self.verify_token = self.get_verify_token()
 
-    def get_verify_token(self):
-        raise NotImplemented
+    @classmethod
+    def get_or_create(cls, provider, uid, params=None):
+        model = get_consumer_class(provider.name)
 
-    def get(self):
-        return self.query.filter_by(
-            provider=self.provider,
-            verify_token=self.get_verify_token())\
+        instance = db.session.query(model).filter_by(provider=provider, uid=uid)\
             .first()
-
-    def exists(self):
-            return self.get is not None
+        if instance:
+            return instance, False
+        else:
+            instance = model(provider=provider, uid=uid, params=params)
+            db.session.add(instance)
+            db.session.commit()
+            return instance, True

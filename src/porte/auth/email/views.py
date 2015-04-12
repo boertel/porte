@@ -1,7 +1,7 @@
 from flask import redirect, url_for, render_template, session, request
 from porte.auth.forms import RegistrationForm, LoginForm
 from porte.auth.models import Provider
-from porte.auth.helpers import current_user, consumerize
+from porte.auth.helpers import current_user, register, login
 
 
 def email_register():
@@ -9,11 +9,10 @@ def email_register():
     if form.validate():
         provider = Provider.query.filter_by(name='email').first()
         email = form.data['email']
-        consumer_data = {
-            'email': email,
-            'password': form.data['password'],
+        params = {
+            'password': form.data['password']
         }
-        user = consumerize(provider, consumer_data, {'email': email})
+        user = register(provider, email, params, {'email': email})
         session['id'] = user.id
         if 'next' in request.form:
             return redirect(request.form['next'])
@@ -30,16 +29,12 @@ def email_login():
         form = LoginForm()
         if form.validate():
             provider = Provider.query.filter_by(name='email').first()
-            consumer_data = {
-                'email': form.data.email,
-                'password': form.data.password
+            email = form.data['email']
+            params = {
+                'password': form.data['password']
             }
-            # TODO "create_consumer and exists" already happens in the consumerize
-            consumer = provider.create_consumer(**consumer_data)
-            if consumer.exists():
-                user = consumerize(provider, consumer_data,
-                                   {'email': form.data.email})
-                session['id'] = user.id
+            user = login(provider, email, params)
+            session['id'] = user.id
         return redirect(request.form.get('next', url_for('auth.success')))
     user = current_user()
     return render_template('auth/email/login.html',

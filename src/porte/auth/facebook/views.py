@@ -1,7 +1,7 @@
 import requests
 from flask import request, url_for, session, redirect
 from porte.auth.providers import FacebookProvider
-from porte.auth.helpers import consumerize
+from porte.auth.helpers import register_or_login
 
 
 def index():
@@ -23,10 +23,9 @@ def facebook_callback():
     # TODO ERROR
     me = requests.get('https://graph.facebook.com/me',
                       params={'access_token': resp['access_token']}).json()
-    consumer_data = {
-        'id': me['id'],
-        'params': resp
+    user_data = {
+        'email': me['email']
     }
-    user = consumerize(provider, consumer_data, {'email': me['email']})
+    user, __ = register_or_login(provider, me['id'], resp, user_data)
     session['id'] = user.id
     return redirect(request.args.get('next', url_for('auth.success')))
