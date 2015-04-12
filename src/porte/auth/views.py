@@ -1,34 +1,21 @@
-import requests
-
-from flask import session, request, Blueprint
-from flask import render_template, jsonify, redirect, url_for
-
-from porte import db
-from porte.auth.models import Provider
-from porte.auth.forms import RegistrationForm, LoginForm
-from porte.auth.providers import FacebookProvider
-from porte.user.models import User
+from flask import session, request, Blueprint, render_template, jsonify, \
+    redirect, url_for
 from porte.auth.helpers import current_user
+from porte.auth.facebook import views as facebook_views
+from porte.auth.email import views as email_views
 
 
-auth_module = Blueprint('auth', __name__, url_prefix='/auth')
+auth_module = Blueprint('auth', __name__, url_prefix='/auth',
+                        template_folder='templates')
 
-def consumerize(provider, consumer_data, user_data):
-    commit = False
-    consumer = provider.get_consumer(**consumer_data)
-    if not consumer.exists():
-        db.session.add(consumer)
-        commit = True
-    if not consumer.user:
-        user = User.query.filter_by(email=user_data['email']).first()
-        if user is None:
-            user = User(**user_data)
-        consumer.user = user
-        db.session.add(user)
-        commit = True
-    if commit:
-        db.session.commit()
-    return user
+auth_module.add_url_rule('/email', 'email_login', email_views.email_login)
+auth_module.add_url_rule('/email/register', 'email_register',
+                         email_views.email_register)
+
+auth_module.add_url_rule('/facebook', 'facebook', facebook_views.index)
+auth_module.add_url_rule('/facebook/callback', 'facebook_callback',
+                         facebook_views.facebook_callback)
+
 
 @auth_module.route('/', methods=['GET'])
 def home():
@@ -42,6 +29,7 @@ def home():
                            user=user,
                            urls=urls)
 
+
 @auth_module.route('/success', methods=['GET'])
 def success():
     user = current_user()
@@ -49,77 +37,8 @@ def success():
         return jsonify(user.json())
     return redirect(url_for('auth.home'))
 
+
 @auth_module.route('/logout')
 def logout():
     session.pop('id', None)
     return redirect(request.referrer or url_for('auth.home'))
-
-# TODO move to email module
-@auth_module.route('/email/register', methods=['GET', 'POST'])
-def email_register():
-    form = RegistrationForm()
-    if form.validate():
-        provider = Provider.query.filter_by(name='email').first()
-        email = form.data['email']
-        consumer_data = {
-            'email': email,
-            'password': form.data['password'],
-        }
-        user = consumerize(provider, consumer_data, {'email': email})
-        session['id'] = user.id
-        return redirect(url_for('auth.success'))
-    return render_template('auth/email_register.html',
-                           errors=form.errors,
-                           form=form,
-                           action=url_for('auth.email_register'))
-
-# auth module: with type=email|facebook|twitter
-@auth_module.route('/email', methods=['GET', 'POST'])
-def email_login():
-    if request.method == 'POST':
-        form = LoginForm()
-        if form.validate():
-            provider = Provider.query.filter_by(name='email').first()
-            consumer_data = {
-                'email': form.data.email,
-                'password': form.data.password
-            }
-            # TODO get_consumer and exists happens in the consumerize
-            consumer = provider.get_consumer(**consumer_data)
-            if consumer.exists():
-                user = consumerize(provider, consumer_data, {'email': form.data.email})
-                session['id'] = user.id
-        return redirect(request.form.get('next', url_for('auth.success')))
-    user = current_user()
-    return render_template('auth/email.html',
-                           user=user,
-                           action=url_for('auth.email_login'),
-                           next=request.args.get('next'))
-
-
-# TODO move to a facebook module
-@auth_module.route('/facebook', methods=['GET', 'POST'])
-def facebook():
-    provider = FacebookProvider.query.filter_by(name='facebook').first()
-    url = url_for('auth.facebook_callback', _external=True)
-    return provider.response(url)
-
-@auth_module.route('/facebook/callback')
-def facebook_callback():
-    provider = FacebookProvider.query.filter_by(name='facebook').first()
-    remote = provider.remote
-    resp = remote.authorized_response()
-    if resp is None:
-        return 'Access denied: reason=%s error=%s' % (
-            request.args['error_reason'],
-            request.args['error_description']
-        )
-    # TODO ERROR
-    me = requests.get('https://graph.facebook.com/me', params={'access_token': resp['access_token']}).json()
-    consumer_data = {
-        'id': me['id'],
-        'params': resp
-    }
-    user = consumerize(provider, consumer_data, {'email': me['email']})
-    session['id'] = user.id
-    return redirect(request.form.get('next', url_for('auth.success')))

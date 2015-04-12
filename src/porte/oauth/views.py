@@ -22,7 +22,7 @@ def authorize(*args, **kwargs):
     if request.method == 'GET':
         kwargs['client'] = client
         kwargs['user'] = user
-        return render_template('auth/authorize.html', **kwargs)
+        return render_template('oauth/authorize.html', **kwargs)
     confirm = request.form.get('confirm', 'no')
     return confirm == 'yes'
 
