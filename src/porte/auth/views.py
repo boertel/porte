@@ -2,10 +2,8 @@ import requests
 
 from flask import session, request, Blueprint
 from flask import render_template, jsonify, redirect, url_for
-from werkzeug.security import gen_salt
 
 from porte import db
-from porte.oauth.models import Client
 from porte.auth.models import Provider
 from porte.auth.forms import RegistrationForm, LoginForm
 from porte.auth.providers import FacebookProvider
@@ -125,21 +123,3 @@ def facebook_callback():
     user = consumerize(provider, consumer_data, {'email': me['email']})
     session['id'] = user.id
     return redirect(request.form.get('next', url_for('auth.success')))
-
-@auth_module.route('/client')
-def client():
-    user = current_user()
-    if not user:
-        return redirect(url_for('auth.home'))
-    item = Client(
-        client_id=gen_salt(40),
-        client_secret=gen_salt(50),
-        _redirect_uris=' '.join([
-            'http://localhost:8000/authorized',
-        ]),
-        _default_scopes='email',
-        user_id=user.id
-    )
-    db.session.add(item)
-    db.session.commit()
-    return jsonify(client_id=item.client_id, client_secret=item.client_secret)

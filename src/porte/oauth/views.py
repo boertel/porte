@@ -15,7 +15,7 @@ def authorize(*args, **kwargs):
     user = current_user()
     if not user:
         return redirect('%s?next=%s' % (url_for('auth.home'), quote(request.url)))
-    client_id = kwargs.get('client_id')
+    client_id = kwargs.get('client_id', request.form.get('client_id'))
     client = Client.query.filter_by(client_id=client_id).first()
     if client.is_confidential:
         return True
@@ -34,7 +34,6 @@ def access_token():
 @app.route('/oauth/revoke', methods=['POST'])
 @oauth_provider.revoke_handler
 def revoke_token(*args, **kwargs):
-    import pdb; pdb.set_trace()
     pass
 
 # TODO more management ? than oauth
