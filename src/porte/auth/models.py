@@ -23,7 +23,7 @@ class Provider(db.Model):
     def params(self, value):
         self._params = json.dumps(value)
 
-    def get_consumer(self, *args, **kwargs):
+    def create_consumer(self, *args, **kwargs):
         module_name = 'porte.auth.consumers.%sConsumer' % \
             self.name.capitalize()
         path, class_name = module_name.rsplit('.', 1)
@@ -55,6 +55,11 @@ class Consumer(db.Model):
     def get_verify_token(self):
         raise NotImplemented
 
+    def get(self):
+        return self.query.filter_by(
+            provider=self.provider,
+            verify_token=self.get_verify_token())\
+            .first()
+
     def exists(self):
-        return self.query.filter_by(verify_token=self.get_verify_token())\
-            .count() == 1
+            return self.get is not None

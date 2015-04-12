@@ -34,8 +34,8 @@ def email_login():
                 'email': form.data.email,
                 'password': form.data.password
             }
-            # TODO "get_consumer and exists" already happens in the consumerize
-            consumer = provider.get_consumer(**consumer_data)
+            # TODO "create_consumer and exists" already happens in the consumerize
+            consumer = provider.create_consumer(**consumer_data)
             if consumer.exists():
                 user = consumerize(provider, consumer_data,
                                    {'email': form.data.email})

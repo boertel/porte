@@ -13,9 +13,13 @@ def current_user():
 
 def consumerize(provider, consumer_data, user_data):
     commit = False
-    consumer = provider.get_consumer(**consumer_data)
-    if not consumer.exists():
+    consumer = provider.create_consumer(**consumer_data)
+    consumer_obj = consumer.get()
+    if not consumer_obj:
         db.session.add(consumer)
+        commit = True
+    else:
+        consumer_obj.params = consumer.params
         commit = True
     if not consumer.user:
         user = User.query.filter_by(email=user_data['email']).first()
