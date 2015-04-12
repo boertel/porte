@@ -1,9 +1,8 @@
-from enum import Enum
-
-from sqlalchemy import event
-from sqlalchemy_utils import ChoiceType
+from datetime import datetime
 
 from porte import db
+from sqlalchemy import event
+from sqlalchemy_utils import ChoiceType
 
 
 class User(db.Model):
@@ -24,6 +23,7 @@ class User(db.Model):
     first_name = db.Column(db.String(80))
     last_name = db.Column(db.String(80))
     status = db.Column(ChoiceType(TYPES, impl=db.Integer()), default=INACTIVE)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def json(self):
         # TODO http://marshmallow.readthedocs.org/en/latest/examples.html
@@ -31,6 +31,7 @@ class User(db.Model):
             'id': self.id,
             'email': self.email,
         }
+
 
 @event.listens_for(User, 'after_insert')
 def receive_after_insert(mapper, connection, user):

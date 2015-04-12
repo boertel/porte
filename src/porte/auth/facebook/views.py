@@ -6,7 +6,8 @@ from porte.auth.helpers import consumerize
 
 def index():
     provider = FacebookProvider.query.filter_by(name='facebook').first()
-    url = url_for('auth.facebook_callback', _external=True)
+    url = url_for('auth.facebook_callback', next=request.args.get('next'),
+                  _external=True)
     return provider.response(url)
 
 
@@ -28,4 +29,4 @@ def facebook_callback():
     }
     user = consumerize(provider, consumer_data, {'email': me['email']})
     session['id'] = user.id
-    return redirect(request.form.get('next', url_for('auth.success')))
+    return redirect(request.args.get('next', url_for('auth.success')))

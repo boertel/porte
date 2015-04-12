@@ -3,6 +3,9 @@
 {% block content %}
 <form action="{{ action }}" method="POST">
     {{ form.csrf_token }}
+    {% if next %}
+        <input type="hidden" name="next" value="{{ next }}">
+    {% endif %}
     {{ form.email.label }} {{ form.email() }}
     {{ form.password.label }} {{ form.password() }}
     {{ form.confirm.label }} {{ form.confirm() }}

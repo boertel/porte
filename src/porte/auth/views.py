@@ -10,7 +10,7 @@ auth_module = Blueprint('auth', __name__, url_prefix='/auth',
 
 auth_module.add_url_rule('/email', 'email_login', email_views.email_login)
 auth_module.add_url_rule('/email/register', 'email_register',
-                         email_views.email_register)
+                         email_views.email_register, methods=['GET', 'POST'])
 
 auth_module.add_url_rule('/facebook', 'facebook', facebook_views.index)
 auth_module.add_url_rule('/facebook/callback', 'facebook_callback',
@@ -21,8 +21,10 @@ auth_module.add_url_rule('/facebook/callback', 'facebook_callback',
 def home():
     user = current_user()
     urls = {
-        'email': url_for('auth.email_register'),
-        'facebook': url_for('auth.facebook'),
+        'email': url_for('auth.email_register',
+                         next=request.args.get('next')),
+        'facebook': url_for('auth.facebook',
+                            next=request.args.get('next')),
         'logout': url_for('auth.logout')
     }
     return render_template('auth/index.html',

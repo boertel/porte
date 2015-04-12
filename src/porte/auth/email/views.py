@@ -15,10 +15,13 @@ def email_register():
         }
         user = consumerize(provider, consumer_data, {'email': email})
         session['id'] = user.id
+        if 'next' in request.form:
+            return redirect(request.form['next'])
         return redirect(url_for('auth.success'))
     return render_template('auth/email/register.html',
                            errors=form.errors,
                            form=form,
+                           next=request.args.get('next'),
                            action=url_for('auth.email_register'))
 
 
@@ -31,7 +34,7 @@ def email_login():
                 'email': form.data.email,
                 'password': form.data.password
             }
-            # TODO get_consumer and exists happens in the consumerize
+            # TODO "get_consumer and exists" already happens in the consumerize
             consumer = provider.get_consumer(**consumer_data)
             if consumer.exists():
                 user = consumerize(provider, consumer_data,
