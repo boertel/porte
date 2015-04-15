@@ -1,8 +1,6 @@
 import os
-import hmac
+import json
 from unittest import TestCase
-from datetime import datetime, timedelta
-from hashlib import sha1
 
 from porte import app, db
 
@@ -12,11 +10,15 @@ class PorteTestCase(TestCase):
         app.config['test'] = True
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///'\
             + os.path.join(app.config['BASE_DIR'], 'tests/test.db')
-        app.config['CSRF_ENABLED'] = False
+        app.config['WTF_CSRF_ENABLED'] = False
         return app
 
     def _request(self, method, *args, **kwargs):
-        return method(*args, **kwargs)
+        kwargs['follow_redirects'] = kwargs.get('follow_redirects', True)
+        response = method(*args, **kwargs)
+        if response.content_type == 'application/json':
+            response.json = json.loads(response.data)
+        return response
 
     def get(self, *args, **kwargs):
         return self._request(self.client.get, *args, **kwargs)

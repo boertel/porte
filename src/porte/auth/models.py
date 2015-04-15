@@ -49,6 +49,9 @@ class Consumer(db.Model):
     def __init__(self, *args, **kwargs):
         super(Consumer, self).__init__(*args, **kwargs)
 
+    def is_valid(self, params):
+        return True
+
     @classmethod
     def get_or_create(cls, provider, uid, params=None):
         model = get_consumer_class(provider.name)

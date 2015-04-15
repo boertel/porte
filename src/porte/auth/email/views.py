@@ -12,6 +12,9 @@ def email_register():
         params = {
             'password': form.data['password']
         }
+        # TODO split like this: ?
+        # consumer = provider.register_consumer(uid, params)
+        # user = consumer.create_user({'email': email})
         user = register(provider, email, params, {'email': email})
         session['id'] = user.id
         if 'next' in request.form:
@@ -33,6 +36,7 @@ def email_login():
             params = {
                 'password': form.data['password']
             }
+            # provider.login(email, params)
             user = login(provider, email, params)
             session['id'] = user.id
         return redirect(request.form.get('next', url_for('auth.success')))
